@@ -30,8 +30,9 @@ RUN pip install --no-cache-dir -r requirements.txt gunicorn==20.1.0
 COPY api/ ./api/
 COPY models/ ./models/
 
-# Create a non-root user and switch to it
+# Create uploads directory and non-root user
 RUN adduser --disabled-password --gecos "" appuser && \
+    mkdir -p /app/uploads && \
     chown -R appuser:appuser /app
 USER appuser
 
@@ -43,5 +44,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 EXPOSE ${PORT}
 
 # Run with gunicorn for production
-CMD ["sh", "-c", "gunicorn -k uvicorn.workers.UvicornWorker -w $WORKERS_PER_CORE --max-workers $MAX_WORKERS -t $TIMEOUT --bind 0.0.0.0:${PORT} --keep-alive $KEEP_ALIVE api.main:app"]
+CMD ["sh", "-c", "gunicorn -k uvicorn.workers.UvicornWorker -w ${MAX_WORKERS:-4} -t $TIMEOUT --bind 0.0.0.0:${PORT} --keep-alive $KEEP_ALIVE api.main:app"]
 
