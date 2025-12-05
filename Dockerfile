@@ -21,7 +21,6 @@ COPY api/ ./api/
 COPY models/ ./models/
 
 # Expose port (Render will set $PORT)
-ENV PORT=8000
 EXPOSE ${PORT}
 
 # Run API (use Render-provided $PORT when available)
