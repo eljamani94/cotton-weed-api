@@ -131,51 +131,62 @@ def postprocess_predictions(
 def predict_image(image: Image.Image) -> Optional[Dict[str, List]]:
     """
     Main prediction function
-    
+
     Args:
         image: PIL Image to predict on
-    
+
     Returns:
         Dictionary with predictions or None if error
     """
     try:
         model = get_model()
         model_type = get_model_type()
-        
+
         if model is None:
             raise ValueError("Model not loaded")
-        
+
         original_size = image.size  # (width, height)
-        
+
         # Handle YOLOv8 models
         if model_type == 'yolo':
             # YOLOv8 models handle preprocessing internally
-            results = model.predict(image, conf=0.25, verbose=False)
-            
+            # Use lower conf threshold and disable verbose output
+            # Set imgsz to 640 to ensure consistent processing
+            results = model.predict(
+                image,
+                conf=0.25,
+                verbose=False,
+                imgsz=640,
+                device='cpu'  # Force CPU to avoid CUDA memory issues
+            )
+
             boxes = []
             classes = []
             confidences = []
-            
+
             # YOLOv8 returns a list of Results objects
             if len(results) > 0:
                 result = results[0]
-                
+
                 # Get class names from model
                 class_names = result.names if hasattr(result, 'names') else {}
-                
+
                 # Extract boxes, confidences, and classes
                 if result.boxes is not None and len(result.boxes) > 0:
                     boxes_data = result.boxes.xyxy.cpu().numpy()  # [x1, y1, x2, y2]
                     confidences_data = result.boxes.conf.cpu().numpy()
                     classes_data = result.boxes.cls.cpu().numpy().astype(int)
-                    
+
                     for box, conf, cls_id in zip(boxes_data, confidences_data, classes_data):
                         boxes.append([float(box[0]), float(box[1]), float(box[2]), float(box[3])])
                         confidences.append(float(conf))
                         # Use class name if available, otherwise use class ID
                         class_name = class_names.get(cls_id, f"weed_class_{cls_id}")
                         classes.append(class_name)
-            
+
+            # Clean up
+            del results
+
             return {
                 "boxes": boxes,
                 "classes": classes,

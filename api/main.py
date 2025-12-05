@@ -92,54 +92,116 @@ async def get_latest():
     predictions = get_latest_predictions(limit=10)
     return {"predictions": predictions}
 
+@app.get("/test")
+async def test_endpoint():
+    """Simple test endpoint to verify API is responding"""
+    import sys
+    import psutil
+    import os
+
+    process = psutil.Process(os.getpid())
+    memory_info = process.memory_info()
+
+    return {
+        "status": "ok",
+        "message": "API is working",
+        "python_version": sys.version,
+        "memory_usage_mb": round(memory_info.rss / 1024 / 1024, 2),
+        "model_loaded": get_model() is not None,
+        "model_type": get_model_type()
+    }
+
 @app.post("/predict", response_model=PredictionResponse)
 async def predict(file: UploadFile = File(...)):
     """
     Predict weeds in uploaded image
-    
+
     Args:
         file: Image file (jpg, png, etc.)
-    
+
     Returns:
         JSON with bounding boxes, classes, and confidences
     """
+    image = None
+    image_bytes = None
+
     try:
         # Validate file type
         if not file.content_type.startswith("image/"):
             raise HTTPException(status_code=400, detail="File must be an image")
-        
-        # Read image
+
+        print(f"Processing image: {file.filename}, content_type: {file.content_type}")
+
+        # Read image with size limit (max 10MB)
+        MAX_SIZE = 10 * 1024 * 1024  # 10MB
         image_bytes = await file.read()
+
+        if len(image_bytes) > MAX_SIZE:
+            raise HTTPException(status_code=400, detail="Image too large. Max size is 10MB")
+
+        print(f"Image size: {len(image_bytes)} bytes")
+
+        # Open and process image
         image = Image.open(io.BytesIO(image_bytes))
-        
+
+        # Resize large images to reduce memory usage
+        max_dimension = 1280
+        if max(image.size) > max_dimension:
+            ratio = max_dimension / max(image.size)
+            new_size = tuple(int(dim * ratio) for dim in image.size)
+            image = image.resize(new_size, Image.LANCZOS)
+            print(f"Resized image to {new_size}")
+
         # Convert to RGB if necessary
         if image.mode != "RGB":
             image = image.convert("RGB")
-        
+
+        print("Running prediction...")
+
         # Get predictions
         predictions = predict_image(image)
-        
+
         if predictions is None:
-            raise HTTPException(status_code=500, detail="Prediction failed")
-        
+            raise HTTPException(status_code=500, detail="Prediction failed - model returned None")
+
+        print(f"Prediction complete: {len(predictions.get('boxes', []))} detections")
+
         # Save prediction to database for real-time sync
-        # Save image temporarily (optional - you can store in cloud storage instead)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        image_path = f"uploads/{timestamp}_{file.filename}"
-        os.makedirs("uploads", exist_ok=True)
-        image.save(image_path)
-        
-        save_prediction(image_path, predictions, device_type="api")
-        
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            image_path = f"uploads/{timestamp}_{file.filename}"
+            os.makedirs("uploads", exist_ok=True)
+            image.save(image_path)
+            save_prediction(image_path, predictions, device_type="api")
+        except Exception as db_error:
+            # Don't fail the request if database save fails
+            print(f"Warning: Failed to save to database: {db_error}")
+
+        # Clean up memory
+        del image_bytes
+        del image
+
         return PredictionResponse(
             boxes=predictions["boxes"],
             classes=predictions["classes"],
             confidences=predictions["confidences"],
             num_detections=len(predictions["boxes"])
         )
-    
+
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
+        print(f"Error in predict endpoint: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error processing image: {str(e)}")
+    finally:
+        # Ensure cleanup
+        if image_bytes:
+            del image_bytes
+        if image:
+            del image
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
