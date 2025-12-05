@@ -21,14 +21,19 @@ from datetime import datetime
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events"""
     # Startup
+    print("Starting application...")
     try:
+        print("Loading model...")
         load_model()
-        print("Model loaded successfully")
+        print("✓ Model loaded successfully")
     except Exception as e:
-        print(f"❌ Error loading model: {str(e)}")
+        print(f"✗ Error loading model: {str(e)}")
         print("WARNING: Make sure your model file is in the models/ folder")
+        print("Application will continue but predictions will fail")
+    print("Application startup complete")
     yield
     # Shutdown (if needed)
+    print("Shutting down application...")
     pass
 
 app = FastAPI(
