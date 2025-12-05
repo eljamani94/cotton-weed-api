@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.local
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Uploads
+uploads/
+*.jpg
+*.jpeg
+*.png
+!models/*.jpg
+!models/*.jpeg
+!models/*.png
+
+# Keep model files
+!models/*.pt
+!models/*.pth
