@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    container_name: cotton_weed_api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/app/models
+      - ./api:/app/api
+      - ./uploads:/app/uploads
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PORT=8000
+      - WORKERS_PER_CORE=1
+      - MAX_WORKERS=2
+      - TIMEOUT=120
+      - KEEP_ALIVE=5
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
